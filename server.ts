@@ -5,7 +5,7 @@ import { db } from "./src/db/index.js";
 import { platforms, orders, customers, customPlatformRequests, messages, notifications, invoices, paymentSettings, inPersonMeetings } from "./src/db/schema.js";
 import { eq, desc, and, or, sql } from "drizzle-orm";
 import crypto from "crypto";
-import { sendVerificationEmail } from "./src/utils/email.js";
+import { sendVerificationEmail, sendPasswordResetEmail } from "./src/utils/email.js";
 
 export const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
@@ -406,7 +406,7 @@ app.use(express.urlencoded({ limit: '10mb', extended: true }));
             name, phone, whatsapp, governorate, region, platformIdea, additionalInfo
           }).where(eq(customers.email, email));
           
-          sendVerificationEmail(email, name, otp);
+          sendVerificationEmail, sendPasswordResetEmail(email, name, otp);
           return res.json({ success: true, requiresVerification: true, email });
         }
       }
@@ -427,7 +427,7 @@ app.use(express.urlencoded({ limit: '10mb', extended: true }));
         purchasedPlatforms: []
       });
       
-      sendVerificationEmail(email, name, otp);
+      sendVerificationEmail, sendPasswordResetEmail(email, name, otp);
       res.json({ success: true, requiresVerification: true, email });
     } catch (error) {
       console.error("Register error:", error);
@@ -494,7 +494,7 @@ app.use(express.urlencoded({ limit: '10mb', extended: true }));
         verificationCodeExpires: expires,
       }).where(eq(customers.email, email));
       
-      sendVerificationEmail(email, customer[0].name, otp);
+      sendVerificationEmail, sendPasswordResetEmail(email, customer[0].name, otp);
       res.json({ success: true });
     } catch (error) {
       console.error("Resend code error:", error);
@@ -531,7 +531,7 @@ app.use(express.urlencoded({ limit: '10mb', extended: true }));
           verificationCode: otp,
           verificationCodeExpires: expires,
         }).where(eq(customers.email, email));
-        sendVerificationEmail(email, customer[0].name, otp);
+        sendVerificationEmail, sendPasswordResetEmail(email, customer[0].name, otp);
 
         return res.json({ success: true, requiresVerification: true, email });
       }
@@ -544,6 +544,73 @@ app.use(express.urlencoded({ limit: '10mb', extended: true }));
       res.json({ success: true, user: { id: customer[0].id, name: customer[0].name, email: customer[0].email, phone: customer[0].phone, role: 'customer' } });
     } catch (error) {
       console.error("Login error:", error);
+      res.status(500).json({ error: "Internal Server Error" });
+    }
+  });
+
+
+  // Auth: Forgot Password
+  app.post("/api/auth/forgot-password", async (req, res) => {
+    try {
+      const { email } = req.body;
+      const cleanEmail = (email || "").trim().toLowerCase();
+
+      const customer = await db.select().from(customers).where(eq(customers.email, cleanEmail)).limit(1);
+      
+      // Always return success to prevent email enumeration
+      if (customer.length === 0) {
+        return res.json({ success: true, message: "If an account exists, a reset code was sent." });
+      }
+      
+      const otp = Math.floor(100000 + Math.random() * 900000).toString();
+      const expires = new Date(Date.now() + 15 * 60 * 1000); // 15 mins
+      
+      await db.update(customers).set({
+        verificationCode: otp,
+        verificationCodeExpires: expires,
+      }).where(eq(customers.email, cleanEmail));
+      
+      sendPasswordResetEmail(cleanEmail, customer[0].name, otp);
+      
+      res.json({ success: true, message: "If an account exists, a reset code was sent." });
+    } catch (error) {
+      console.error("Forgot password error:", error);
+      res.status(500).json({ error: "Internal Server Error" });
+    }
+  });
+
+  // Auth: Reset Password
+  app.post("/api/auth/reset-password", async (req, res) => {
+    try {
+      const { email, code, newPassword } = req.body;
+      const cleanEmail = (email || "").trim().toLowerCase();
+      const cleanPassword = (newPassword || "").trim();
+
+      if (!cleanPassword || cleanPassword.length < 6) {
+        return res.status(400).json({ error: "كلمة المرور يجب أن تكون 6 أحرف على الأقل" });
+      }
+
+      const customer = await db.select().from(customers).where(eq(customers.email, cleanEmail)).limit(1);
+      
+      if (customer.length === 0) {
+        return res.status(404).json({ error: "المستخدم غير موجود" });
+      }
+      
+      if (customer[0].verificationCode !== code || !customer[0].verificationCodeExpires || customer[0].verificationCodeExpires < new Date()) {
+        return res.status(400).json({ error: "رمز غير صالح أو منتهي الصلاحية" });
+      }
+      
+      const passwordHash = crypto.createHash("sha256").update(cleanPassword).digest("hex");
+      
+      await db.update(customers).set({
+        passwordHash,
+        verificationCode: null,
+        verificationCodeExpires: null,
+      }).where(eq(customers.email, cleanEmail));
+      
+      res.json({ success: true, message: "تم إعادة تعيين كلمة المرور بنجاح" });
+    } catch (error) {
+      console.error("Reset password error:", error);
       res.status(500).json({ error: "Internal Server Error" });
     }
   });
