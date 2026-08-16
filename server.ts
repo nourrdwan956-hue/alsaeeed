@@ -1,12 +1,11 @@
 import "dotenv/config";
 import express from "express";
 import path from "path";
-import { createServer as createViteServer } from "vite";
-import { db } from "./src/db/index.js";
-import { platforms, orders, customers, customPlatformRequests, messages, notifications, invoices, paymentSettings, inPersonMeetings } from "./src/db/schema.js";
+import { db } from "./src/db/index";
+import { platforms, orders, customers, customPlatformRequests, messages, notifications, invoices, paymentSettings, inPersonMeetings } from "./src/db/schema";
 import { eq, desc, and, or, sql } from "drizzle-orm";
 import crypto from "crypto";
-import { sendVerificationEmail } from "./src/utils/email.js";
+import { sendVerificationEmail } from "./src/utils/email";
 
 export const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
@@ -1502,6 +1501,7 @@ app.use(express.urlencoded({ limit: '10mb', extended: true }));
   // Vite middleware for development
 async function startServer() {
   if (process.env.NODE_ENV !== "production") {
+    const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
