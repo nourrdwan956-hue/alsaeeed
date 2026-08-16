@@ -1,0 +1,166 @@
+--- src/pages/CustomerDashboard.tsx
++++ src/pages/CustomerDashboard.tsx
+@@ -10,6 +10,7 @@
+   Activity,
+   Clock,
+   CheckCircle,
++  PlusCircle,
+   ExternalLink,
+   Crown
+ } from 'lucide-react';
+@@ -21,6 +22,14 @@
+   const [activeTab, setActiveTab] = useState('platforms');
+   const [orders, setOrders] = useState<any[]>([]);
+   const [loading, setLoading] = useState(true);
++  
++  const [customRequestData, setCustomRequestData] = useState({
++    platformName: '',
++    teacherName: '',
++    subject: '',
++    targetAudience: '',
++    additionalRequirements: ''
++  });
++  const [requestStatus, setRequestStatus] = useState<'idle' | 'loading' | 'success'>('idle');
+ 
+   useEffect(() => {
+@@ -48,6 +57,28 @@
+     navigate('/');
+   };
+ 
++  const handleCustomRequestSubmit = async (e: React.FormEvent) => {
++    e.preventDefault();
++    setRequestStatus('loading');
++    try {
++      const res = await fetch('/api/custom-requests', {
++        method: 'POST',
++        headers: { 'Content-Type': 'application/json' },
++        body: JSON.stringify({
++          email: user?.email,
++          ...customRequestData
++        })
++      });
++      const data = await res.json();
++      if (data.success) {
++        setRequestStatus('success');
++      }
++    } catch (err) {
++      console.error(err);
++      setRequestStatus('idle');
++    }
++  };
++
+   if (!user) return null;
+ 
+   return (
+@@ -107,6 +138,20 @@
+             {activeTab === 'orders' && <ChevronLeft className="w-4 h-4" />}
+           </button>
+ 
++          <button 
++            onClick={() => {setActiveTab('custom_platform'); setRequestStatus('idle');}}
++            className={`w-full flex items-center justify-between p-4 rounded-xl font-bold transition-all duration-300 ${
++              activeTab === 'custom_platform' 
++                ? 'bg-amber-500/10 text-amber-500 shadow-[inset_4px_0_0_0_#f59e0b]' 
++                : 'hover:bg-slate-900 hover:text-white'
++            }`}
++          >
++            <div className="flex items-center gap-3">
++              <PlusCircle className="w-5 h-5" />
++              <span>طلب منصة خاصة</span>
++            </div>
++            {activeTab === 'custom_platform' && <ChevronLeft className="w-4 h-4" />}
++          </button>
++
+           <button 
+             onClick={() => setActiveTab('tickets')}
+             className={`w-full flex items-center justify-between p-4 rounded-xl font-bold transition-all duration-300 ${
+@@ -145,7 +190,8 @@
+         <header className="bg-white p-6 shadow-sm flex items-center justify-between sticky top-0 z-10">
+           <h1 className="text-2xl font-black text-indigo-950 font-tajawal">
+             {activeTab === 'platforms' ? 'المنصات التعليمية' : 
+-             activeTab === 'orders' ? 'سجل المدفوعات' : 'مركز الدعم الفني'}
++             activeTab === 'orders' ? 'سجل المدفوعات' : 
++             activeTab === 'custom_platform' ? 'طلب منصة خاصة' : 'مركز الدعم الفني'}
+           </h1>
+           <div className="hidden md:flex items-center gap-4">
+             <div className="relative">
+@@ -258,6 +304,77 @@
+                 </div>
+               )}
+ 
++              {/* CUSTOM PLATFORM REQUEST TAB */}
++              {activeTab === 'custom_platform' && (
++                <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-3xl mx-auto">
++                  {requestStatus === 'success' ? (
++                    <div className="bg-white rounded-2xl p-12 text-center shadow-sm border border-emerald-100">
++                      <div className="w-24 h-24 bg-emerald-100 text-emerald-500 rounded-full flex items-center justify-center mx-auto mb-6">
++                        <CheckCircle className="w-12 h-12" />
++                      </div>
++                      <h3 className="text-3xl font-black text-slate-900 mb-4 font-tajawal">تم إرسال طلبك بنجاح!</h3>
++                      <p className="text-slate-500 text-lg leading-relaxed max-w-md mx-auto mb-8">
++                        سيتم مراجعة المطلوب وإخبارك بالسعر المبدئي للمنصة المطلوبة. يرجى ملاحظة أن السعر قابل للتغيير والتفاوض بناءً على التفاصيل النهائية. سيقوم فريقنا بالتواصل معك قريباً.
++                      </p>
++                      <button 
++                        onClick={() => setActiveTab('platforms')}
++                        className="bg-indigo-950 text-white px-8 py-3 rounded-xl font-bold hover:bg-indigo-900 transition-colors shadow-lg shadow-indigo-950/20"
++                      >
++                        العودة للمنصات
++                      </button>
++                    </div>
++                  ) : (
++                    <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden p-8">
++                      <div className="mb-8">
++                        <h2 className="text-2xl font-bold text-indigo-950 mb-2 font-tajawal">أنشئ منصتك التعليمية المخصصة</h2>
++                        <p className="text-slate-500">أدخل البيانات الأساسية لطلب إنشاء منصتك، وسنقوم بدراسة الطلب وتقديم عرض سعر مبدئي لك.</p>
++                      </div>
++                      <form onSubmit={handleCustomRequestSubmit} className="space-y-6">
++                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
++                          <div>
++                            <label className="block text-sm font-bold text-slate-700 mb-2">اسم المنصة المقترح</label>
++                            <input type="text" required value={customRequestData.platformName} onChange={e => setCustomRequestData({...customRequestData, platformName: e.target.value})} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none transition-all" placeholder="مثال: أكاديمية التفوق" />
++                          </div>
++                          <div>
++                            <label className="block text-sm font-bold text-slate-700 mb-2">اسم المعلم / صاحب المنصة</label>
++                            <input type="text" required value={customRequestData.teacherName} onChange={e => setCustomRequestData({...customRequestData, teacherName: e.target.value})} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none transition-all" />
++                          </div>
++                          <div>
++                            <label className="block text-sm font-bold text-slate-700 mb-2">المادة العلمية التخصصية</label>
++                            <input type="text" required value={customRequestData.subject} onChange={e => setCustomRequestData({...customRequestData, subject: e.target.value})} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none transition-all" placeholder="مثال: الفيزياء، الكيمياء، إلخ" />
++                          </div>
++                          <div>
++                            <label className="block text-sm font-bold text-slate-700 mb-2">الجمهور المستهدف (الصفوف)</label>
++                            <input type="text" value={customRequestData.targetAudience} onChange={e => setCustomRequestData({...customRequestData, targetAudience: e.target.value})} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none transition-all" placeholder="مثال: المرحلة الثانوية" />
++                          </div>
++                          <div className="md:col-span-2">
++                            <label className="block text-sm font-bold text-slate-700 mb-2">متطلبات إضافية وميزات ترغب بها</label>
++                            <textarea rows={4} value={customRequestData.additionalRequirements} onChange={e => setCustomRequestData({...customRequestData, additionalRequirements: e.target.value})} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none transition-all" placeholder="حدثنا أكثر عن الميزات التي تحلم بها في منصتك..."></textarea>
++                          </div>
++                        </div>
++                        <div className="pt-6 border-t border-slate-100">
++                          <button 
++                            type="submit" 
++                            disabled={requestStatus === 'loading'}
++                            className="w-full md:w-auto px-10 py-4 bg-gradient-to-r from-amber-600 to-amber-400 text-slate-950 font-bold rounded-xl shadow-lg hover:shadow-[0_10_20px_rgba(251,191,36,0.3)] hover:-translate-y-1 transition-all duration-300 text-lg flex items-center justify-center gap-2"
++                          >
++                            {requestStatus === 'loading' ? (
++                              <span className="flex items-center gap-2">
++                                <div className="w-5 h-5 border-2 border-slate-900 border-t-transparent rounded-full animate-spin"></div>
++                                جاري الإرسال...
++                              </span>
++                            ) : (
++                              <>
++                                <PlusCircle className="w-5 h-5" />
++                                إرسال طلب الإنشاء
++                              </>
++                            )}
++                          </button>
++                        </div>
++                      </form>
++                    </div>
++                  )}
++                </div>
++              )}
++
+               {/* TICKETS TAB (MOCK FOR MVP) */}
+               {activeTab === 'tickets' && (
+                 <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">

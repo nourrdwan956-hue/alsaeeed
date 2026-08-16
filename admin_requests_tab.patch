@@ -1,0 +1,58 @@
+--- src/pages/AdminDashboard.tsx
++++ src/pages/AdminDashboard.tsx
+@@ -296,6 +296,56 @@
+         </div>
+       )}
+ 
++      {activeTab === 'requests' && (
++        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden p-6">
++          <h2 className="text-xl font-bold text-indigo-950 mb-6 font-tajawal">طلبات إنشاء المنصات الخاصة</h2>
++          {loadingCustomRequests ? (
++            <div className="p-12 text-center text-slate-500">جاري تحميل الطلبات...</div>
++          ) : customRequests.length === 0 ? (
++            <div className="p-12 text-center text-slate-500">لا توجد طلبات جديدة حالياً.</div>
++          ) : (
++            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
++              {customRequests.map((req, idx) => (
++                <div key={idx} className="bg-slate-50 rounded-xl border border-slate-200 p-6 flex flex-col justify-between hover:shadow-md transition-shadow">
++                  <div>
++                    <div className="flex justify-between items-start mb-4">
++                      <h3 className="font-bold text-lg text-indigo-950 font-tajawal">{req.request.platformName}</h3>
++                      <span className={`px-2 py-1 rounded text-xs font-bold ${
++                        req.request.status === 'pending' ? 'bg-amber-100 text-amber-800' : 
++                        req.request.status === 'completed' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-700'
++                      }`}>
++                        {req.request.status === 'pending' ? 'قيد الانتظار' : req.request.status}
++                      </span>
++                    </div>
++                    <div className="space-y-3 mb-6">
++                      <div className="flex gap-2 text-sm"><span className="text-slate-500 font-medium">العميل:</span> <span className="font-bold text-slate-800">{req.customer?.name}</span></div>
++                      <div className="flex gap-2 text-sm"><span className="text-slate-500 font-medium">هاتف العميل:</span> <span className="font-bold text-slate-800 dir-ltr">{req.customer?.phone}</span></div>
++                      <div className="flex gap-2 text-sm"><span className="text-slate-500 font-medium">واتساب العميل:</span> <span className="font-bold text-slate-800 dir-ltr">{req.customer?.whatsapp}</span></div>
++                      <hr className="border-slate-200" />
++                      <div className="flex gap-2 text-sm"><span className="text-slate-500 font-medium">صاحب المنصة:</span> <span className="font-bold text-slate-800">{req.request.teacherName}</span></div>
++                      <div className="flex gap-2 text-sm"><span className="text-slate-500 font-medium">المادة:</span> <span className="font-bold text-slate-800">{req.request.subject}</span></div>
++                      <div className="flex gap-2 text-sm"><span className="text-slate-500 font-medium">الجمهور المستهدف:</span> <span className="font-bold text-slate-800">{req.request.targetAudience}</span></div>
++                      <div className="text-sm mt-3">
++                        <span className="text-slate-500 font-medium block mb-1">تفاصيل إضافية:</span>
++                        <p className="text-slate-700 bg-white p-3 rounded-lg border border-slate-100 text-sm whitespace-pre-wrap">
++                          {req.request.additionalRequirements || 'لا توجد تفاصيل إضافية.'}
++                        </p>
++                      </div>
++                    </div>
++                  </div>
++                  <div className="flex gap-2 mt-4 pt-4 border-t border-slate-200">
++                    <button className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white py-2 rounded-lg font-bold text-sm transition-colors">
++                      التواصل واتساب
++                    </button>
++                  </div>
++                </div>
++              ))}
++            </div>
++          )}
++        </div>
++      )}
++
+       {activeTab === 'add' && (
+         <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200">
+           <form onSubmit={handleAddPlatform} className="space-y-6">

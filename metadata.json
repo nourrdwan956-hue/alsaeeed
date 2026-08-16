@@ -1,0 +1,6 @@
+{
+  "name": "Al-Saeed Platforms",
+  "description": "منصة السعيد لبيع وتخصيص المنصات التعليمية الفاخرة للمعلمين مع نظام محادثات وإشعارات حية وبوابة تحقق ذكية من الوثائق عبر الـ QR Code.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
