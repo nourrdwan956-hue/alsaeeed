@@ -5,7 +5,7 @@ import { db } from "./src/db/index.js";
 import { platforms, orders, customers, customPlatformRequests, messages, notifications, invoices, paymentSettings, inPersonMeetings } from "./src/db/schema.js";
 import { eq, desc, and, or, sql } from "drizzle-orm";
 import crypto from "crypto";
-import { sendVerificationEmail, sendPasswordResetEmail } from "./src/utils/email.js";
+import { sendVerificationEmail, sendPasswordResetEmail, isSmtpConfigured } from "./src/utils/email.js";
 
 export const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
@@ -406,8 +406,14 @@ app.use(express.urlencoded({ limit: '10mb', extended: true }));
             name, phone, whatsapp, governorate, region, platformIdea, additionalInfo
           }).where(eq(customers.email, email));
           
-          sendVerificationEmail, sendPasswordResetEmail(email, name, otp);
-          return res.json({ success: true, requiresVerification: true, email });
+          const emailRes = await sendVerificationEmail(email, name, otp);
+          return res.json({ 
+            success: true, 
+            requiresVerification: true, 
+            email, 
+            emailSent: emailRes.success,
+            devOtp: !isSmtpConfigured() || !emailRes.success ? otp : undefined 
+          });
         }
       }
       
@@ -427,8 +433,14 @@ app.use(express.urlencoded({ limit: '10mb', extended: true }));
         purchasedPlatforms: []
       });
       
-      sendVerificationEmail, sendPasswordResetEmail(email, name, otp);
-      res.json({ success: true, requiresVerification: true, email });
+      const emailRes = await sendVerificationEmail(email, name, otp);
+      res.json({ 
+        success: true, 
+        requiresVerification: true, 
+        email, 
+        emailSent: emailRes.success,
+        devOtp: !isSmtpConfigured() || !emailRes.success ? otp : undefined 
+      });
     } catch (error) {
       console.error("Register error:", error);
       res.status(500).json({ error: "Internal Server Error" });
@@ -494,8 +506,12 @@ app.use(express.urlencoded({ limit: '10mb', extended: true }));
         verificationCodeExpires: expires,
       }).where(eq(customers.email, email));
       
-      sendVerificationEmail, sendPasswordResetEmail(email, customer[0].name, otp);
-      res.json({ success: true });
+      const emailRes = await sendVerificationEmail(email, customer[0].name, otp);
+      res.json({ 
+        success: true,
+        emailSent: emailRes.success,
+        devOtp: !isSmtpConfigured() || !emailRes.success ? otp : undefined 
+      });
     } catch (error) {
       console.error("Resend code error:", error);
       res.status(500).json({ error: "Internal Server Error" });
@@ -531,9 +547,16 @@ app.use(express.urlencoded({ limit: '10mb', extended: true }));
           verificationCode: otp,
           verificationCodeExpires: expires,
         }).where(eq(customers.email, email));
-        sendVerificationEmail, sendPasswordResetEmail(email, customer[0].name, otp);
+        
+        const emailRes = await sendVerificationEmail(email, customer[0].name, otp);
 
-        return res.json({ success: true, requiresVerification: true, email });
+        return res.json({ 
+          success: true, 
+          requiresVerification: true, 
+          email,
+          emailSent: emailRes.success,
+          devOtp: !isSmtpConfigured() || !emailRes.success ? otp : undefined 
+        });
       }
       
       const passwordHash = crypto.createHash('sha256').update(password).digest('hex');
@@ -559,7 +582,7 @@ app.use(express.urlencoded({ limit: '10mb', extended: true }));
       
       // Always return success to prevent email enumeration
       if (customer.length === 0) {
-        return res.json({ success: true, message: "If an account exists, a reset code was sent." });
+        return res.json({ success: true, message: "إذا كان الحساب مسجلاً لدينا، فقد تم إرسال الرمز." });
       }
       
       const otp = Math.floor(100000 + Math.random() * 900000).toString();
@@ -570,9 +593,14 @@ app.use(express.urlencoded({ limit: '10mb', extended: true }));
         verificationCodeExpires: expires,
       }).where(eq(customers.email, cleanEmail));
       
-      sendPasswordResetEmail(cleanEmail, customer[0].name, otp);
+      const resetRes = await sendPasswordResetEmail(cleanEmail, customer[0].name, otp);
       
-      res.json({ success: true, message: "If an account exists, a reset code was sent." });
+      res.json({ 
+        success: true, 
+        message: "إذا كان الحساب مسجلاً لدينا، فقد تم إرسال الرمز.",
+        emailSent: resetRes.success,
+        devOtp: !isSmtpConfigured() || !resetRes.success ? otp : undefined 
+      });
     } catch (error) {
       console.error("Forgot password error:", error);
       res.status(500).json({ error: "Internal Server Error" });

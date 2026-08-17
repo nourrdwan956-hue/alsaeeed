@@ -138,7 +138,12 @@ export default function Register() {
       const data = await res.json();
       if (data.requiresVerification) {
         setStep(5); // Go to OTP Step
-        setSuccessMsg('تم إرسال رمز التحقق إلى بريدك الإلكتروني بنجاح!');
+        if (data.devOtp) {
+          setSuccessMsg(`تم إنشاء حسابك بنجاح! (رمز التحقق الخاص بك هو: ${data.devOtp})`);
+          setOtpCode(data.devOtp);
+        } else {
+          setSuccessMsg('تم إرسال رمز التحقق إلى بريدك الإلكتروني بنجاح!');
+        }
       } else if (data.success) {
         login(data.user);
         navigate('/dashboard');
@@ -189,7 +194,12 @@ export default function Register() {
       });
       const data = await res.json();
       if (data.success) {
-        setSuccessMsg('تم إعادة إرسال رمز التحقق إلى بريدك الإلكتروني.');
+        if (data.devOtp) {
+          setSuccessMsg(`تم إنشاء رمز تحقق جديد: ${data.devOtp}`);
+          setOtpCode(data.devOtp);
+        } else {
+          setSuccessMsg('تم إعادة إرسال رمز التحقق إلى بريدك الإلكتروني.');
+        }
       } else {
         setServerError(data.error || 'حدث خطأ أثناء إعادة الإرسال');
       }

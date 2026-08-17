@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { LogIn, Sparkles, ShieldCheck, AlertCircle, Mail, CheckCircle } from 'lucide-react';
+import { LogIn, Sparkles, ShieldCheck, AlertCircle, Mail, CheckCircle, KeyRound, ArrowRight, Lock } from 'lucide-react';
 
 const InputField = ({ label, type = "text", value, onChange, placeholder = "", dir = "rtl", maxLength }: any) => (
-  <div className="relative mb-6">
+  <div className="relative mb-4">
     <input
       type={type} value={value} onChange={onChange} dir={dir} required maxLength={maxLength}
-      className="peer w-full px-4 pt-6 pb-2 rounded-xl border-2 border-slate-200 bg-slate-50/50 outline-none transition-all duration-300 focus:border-amber-500 focus:bg-white placeholder-transparent"
+      className="peer w-full px-4 pt-6 pb-2 rounded-xl border-2 border-slate-200 bg-slate-50/50 outline-none transition-all duration-300 focus:border-amber-500 focus:bg-white placeholder-transparent text-slate-800"
       placeholder={placeholder || label}
     />
     <label className={`absolute right-4 top-4 text-slate-400 text-sm transition-all duration-300 pointer-events-none
@@ -29,6 +29,7 @@ export default function Login() {
   const [isForgotPassword, setIsForgotPassword] = useState(false);
   const [isResetMode, setIsResetMode] = useState(false);
   const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   
   const navigate = useNavigate();
@@ -47,7 +48,12 @@ export default function Login() {
       const data = await res.json();
       if (data.requiresVerification) {
         setRequiresVerification(true);
-        setSuccessMsg('حسابك غير مفعل بعد. لقد أرسلنا رمز تحقق سري إلى بريدك الإلكتروني.');
+        if (data.devOtp) {
+          setSuccessMsg(`حسابك غير مفعل بعد. (رمز التحقق الخاص بك هو: ${data.devOtp})`);
+          setOtpCode(data.devOtp);
+        } else {
+          setSuccessMsg('حسابك غير مفعل بعد. لقد أرسلنا رمز تحقق سري إلى بريدك الإلكتروني.');
+        }
       } else if (data.success) {
         login(data.user);
         if (data.isAdmin || data.user?.role === 'admin') {
@@ -56,7 +62,7 @@ export default function Login() {
           navigate('/dashboard');
         }
       } else {
-        setError(data.error || 'حدث خطأ أثناء تسجيل الدخول');
+        setError(data.error || 'البريد الإلكتروني أو كلمة المرور غير صحيحة');
       }
     } catch (err) {
       setError('حدث خطأ في الاتصال بالخادم');
@@ -65,7 +71,6 @@ export default function Login() {
     }
   };
 
-  
   const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email) {
@@ -81,11 +86,16 @@ export default function Login() {
       });
       const data = await res.json();
       if (data.success) {
-        setSuccessMsg('إذا كان الحساب موجوداً، فقد تم إرسال رمز استعادة إلى بريدك الإلكتروني.');
+        if (data.devOtp) {
+          setSuccessMsg(`إذا كان الحساب مسجلاً لدينا، فقد تم إرسال الرمز. (رمز الاستعادة: ${data.devOtp})`);
+          setOtpCode(data.devOtp);
+        } else {
+          setSuccessMsg('إذا كان الحساب مسجلاً لدينا، فقد أرسلنا رمز إعادة التعيين (6 أرقام) إلى بريدك الإلكتروني.');
+        }
         setIsForgotPassword(false);
         setIsResetMode(true);
       } else {
-        setError(data.error || 'حدث خطأ أثناء إرسال الرابط');
+        setError(data.error || 'حدث خطأ أثناء إرسال رمز الاستعادة');
       }
     } catch (err) {
       setError('حدث خطأ في الاتصال بالخادم');
@@ -96,8 +106,16 @@ export default function Login() {
 
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (otpCode.length !== 6 || newPassword.length < 6) {
-      setError('يرجى التأكد من إدخال الرمز المكون من 6 أرقام وكلمة مرور من 6 أحرف على الأقل');
+    if (otpCode.length !== 6) {
+      setError('يرجى إدخال رمز التحقق المكون من 6 أرقام');
+      return;
+    }
+    if (newPassword.length < 6) {
+      setError('كلمة المرور الجديدة يجب أن تكون 6 أحرف أو أرقام على الأقل');
+      return;
+    }
+    if (confirmPassword && newPassword !== confirmPassword) {
+      setError('كلمتا المرور غير متطابقتين');
       return;
     }
     setLoading(true); setError(''); setSuccessMsg('');
@@ -109,13 +127,15 @@ export default function Login() {
       });
       const data = await res.json();
       if (data.success) {
-        setSuccessMsg('تم تغيير كلمة المرور بنجاح. يمكنك الآن تسجيل الدخول.');
+        setSuccessMsg('تم تعيين كلمة المرور الجديدة بنجاح! يمكنك الآن تسجيل الدخول.');
         setIsResetMode(false);
+        setIsForgotPassword(false);
         setOtpCode('');
-        setPassword('');
+        setPassword(newPassword);
         setNewPassword('');
+        setConfirmPassword('');
       } else {
-        setError(data.error || 'حدث خطأ أثناء تغيير كلمة المرور');
+        setError(data.error || 'رمز التحقق غير صحيح أو منتهي الصلاحية');
       }
     } catch (err) {
       setError('حدث خطأ في الاتصال بالخادم');
@@ -161,7 +181,12 @@ export default function Login() {
       });
       const data = await res.json();
       if (data.success) {
-        setSuccessMsg('تم إعادة إرسال رمز التحقق إلى بريدك الإلكتروني.');
+        if (data.devOtp) {
+          setSuccessMsg(`تم إنشاء رمز تحقق جديد: ${data.devOtp}`);
+          setOtpCode(data.devOtp);
+        } else {
+          setSuccessMsg('تم إرسال رمز تحقق جديد إلى بريدك الإلكتروني.');
+        }
       } else {
         setError(data.error || 'حدث خطأ أثناء إعادة الإرسال');
       }
@@ -190,7 +215,7 @@ export default function Login() {
             <span className="text-transparent bg-clip-text bg-gradient-to-l from-indigo-200 to-indigo-500">منصتك الفاخرة</span>
           </h2>
           <p className="text-slate-400 text-lg leading-relaxed max-w-md mx-auto mb-10">
-            سجل دخولك الآن لمتابعة أداء منصتك، إدارة محتواك، وتقديم أفضل تجربة تعليمية لطلابك.
+            سجل دخولك الآن لمتابعة أداء منصتك، وإدارة محتواك، وتقديم أفضل تجربة تعليمية لطلابك.
           </p>
           
           <div className="flex flex-col gap-4 max-w-sm mx-auto">
@@ -207,37 +232,55 @@ export default function Login() {
         <div className="absolute top-0 right-0 w-64 h-64 bg-amber-500/5 rounded-full blur-[80px]"></div>
         
         <div className="w-full max-w-md relative z-10">
-          <div className="mb-12 text-center lg:text-right">
+          <div className="mb-8 text-center lg:text-right">
             <div className="inline-flex items-center gap-3 mb-4">
               <div className="w-12 h-12 bg-white rounded-xl shadow-sm border border-slate-100 flex items-center justify-center">
-                {requiresVerification ? <Mail className="w-6 h-6 text-amber-500" /> : <LogIn className="w-6 h-6 text-indigo-950" />}
+                {requiresVerification ? (
+                  <Mail className="w-6 h-6 text-amber-500" />
+                ) : isResetMode || isForgotPassword ? (
+                  <KeyRound className="w-6 h-6 text-amber-600" />
+                ) : (
+                  <LogIn className="w-6 h-6 text-indigo-950" />
+                )}
               </div>
               <h1 className="text-3xl font-black text-slate-900 font-tajawal">
-                {requiresVerification ? 'تأكيد الحساب' : isResetMode ? 'تعيين كلمة مرور جديدة' : isForgotPassword ? 'نسيت كلمة المرور' : 'تسجيل الدخول'}
+                {requiresVerification 
+                  ? 'تأكيد الحساب' 
+                  : isResetMode 
+                  ? 'تعيين كلمة المرور' 
+                  : isForgotPassword 
+                  ? 'استعادة كلمة المرور' 
+                  : 'تسجيل الدخول'}
               </h1>
             </div>
-            <p className="text-slate-500">
-              {requiresVerification ? 'أدخل الرمز السري المرسل إلى بريدك لتفعيل حسابك.' : isResetMode ? 'أدخل الرمز المرسل إلى بريدك وكلمة المرور الجديدة' : isForgotPassword ? 'أدخل بريدك الإلكتروني وسنرسل لك رمزاً لاستعادة حسابك' : 'أدخل بياناتك للوصول إلى لوحة التحكم الخاصة بك'}
+            <p className="text-slate-500 text-sm">
+              {requiresVerification 
+                ? 'أدخل الرمز السري المكون من 6 أرقام المرسل إلى بريدك لتفعيل حسابك.' 
+                : isResetMode 
+                ? 'أدخل رمز الاستعادة المرسل إلى بريدك وكلمة المرور الجديدة.' 
+                : isForgotPassword 
+                ? 'أدخل بريدك الإلكتروني وسنرسل لك رمزاً لتغيير كلمة المرور.' 
+                : 'أدخل بياناتك للوصول إلى لوحة التحكم الخاصة بك.'}
             </p>
           </div>
 
           {error && (
             <div className="bg-red-50 text-red-600 p-4 rounded-xl mb-6 text-sm flex items-start gap-2 border border-red-100 animate-in fade-in">
-              <AlertCircle className="w-5 h-5 flex-shrink-0" />
+              <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
               <p>{error}</p>
             </div>
           )}
 
           {successMsg && (
-            <div className="bg-emerald-50 text-emerald-600 p-4 rounded-xl mb-6 text-sm flex items-start gap-2 border border-emerald-100 animate-in fade-in">
-              <CheckCircle className="w-5 h-5 flex-shrink-0" />
+            <div className="bg-emerald-50 text-emerald-700 p-4 rounded-xl mb-6 text-sm flex items-start gap-2 border border-emerald-100 animate-in fade-in">
+              <CheckCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
               <p>{successMsg}</p>
             </div>
           )}
 
+          {/* Regular Login Form */}
           {!requiresVerification && !isForgotPassword && !isResetMode ? (
             <form onSubmit={handleSubmit} className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-              
               <InputField 
                 label="البريد الإلكتروني" 
                 type="email" 
@@ -246,18 +289,37 @@ export default function Login() {
                 dir="ltr" 
               />
               
-              <InputField 
-                label="كلمة المرور" 
-                type="password" 
-                value={password} 
-                onChange={(e: any) => setPassword(e.target.value)} 
-                dir="ltr" 
-              />
+              <div>
+                <InputField 
+                  label="كلمة المرور" 
+                  type="password" 
+                  value={password} 
+                  onChange={(e: any) => setPassword(e.target.value)} 
+                  dir="ltr" 
+                />
+                
+                {/* Forgot Password Link - Positioned Clearly Below Password */}
+                <div className="flex justify-between items-center -mt-2 mb-6 px-1">
+                  <span className="text-xs text-slate-400">تأكد من كتابة كلمة المرور بدقة</span>
+                  <button 
+                    type="button" 
+                    onClick={() => {
+                      setError('');
+                      setSuccessMsg('');
+                      setIsForgotPassword(true);
+                    }} 
+                    className="text-sm font-bold text-amber-600 hover:text-amber-700 transition-colors flex items-center gap-1"
+                  >
+                    <KeyRound className="w-4 h-4" />
+                    نسيت كلمة المرور؟
+                  </button>
+                </div>
+              </div>
 
               <button 
                 type="submit"
                 disabled={loading}
-                className="w-full bg-indigo-950 text-white font-bold py-4 rounded-xl hover:bg-indigo-900 transition-all duration-300 shadow-lg hover:shadow-[0_10_20px_rgba(49,46,129,0.3)] hover:-translate-y-1 active:translate-y-0 text-lg mt-4 flex items-center justify-center gap-2"
+                className="w-full bg-indigo-950 text-white font-bold py-4 rounded-xl hover:bg-indigo-900 transition-all duration-300 shadow-lg hover:shadow-[0_10px_20px_rgba(49,46,129,0.3)] hover:-translate-y-0.5 active:translate-y-0 text-lg flex items-center justify-center gap-2"
               >
                 {loading ? (
                   <span className="flex items-center gap-2">
@@ -271,65 +333,150 @@ export default function Login() {
                   </>
                 )}
               </button>
-              <div className="mt-6 text-center">
-                <button type="button" onClick={() => setIsForgotPassword(true)} className="text-sm font-bold text-slate-500 hover:text-indigo-600 transition-colors">نسيت كلمة المرور؟</button>
-              </div>
             </form>
           ) : isForgotPassword ? (
+            /* Forgot Password Form */
             <form onSubmit={handleForgotPassword} className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <div className="bg-amber-50/70 border border-amber-200/60 p-4 rounded-xl mb-5 text-amber-800 text-xs leading-relaxed">
+                اكتب بريدك الإلكتروني المسجل لدينا، وسنقوم بإرسال رمز تحقق سري فوري لاستعادة حسابك.
+              </div>
+
               <InputField
-                 label="البريد الإلكتروني"
+                 label="البريد الإلكتروني المسجل"
                  type="email"
                  value={email}
-                 onChange={(e) => setEmail(e.target.value)}
+                 onChange={(e: any) => setEmail(e.target.value)}
                  dir="ltr"
                />
+
                <button 
                 type="submit"
                 disabled={loading}
-                className="w-full bg-indigo-950 text-white font-bold py-4 rounded-xl hover:bg-indigo-900 transition-all duration-300 shadow-lg text-lg mt-4"
+                className="w-full bg-gradient-to-r from-amber-600 to-amber-500 text-slate-950 font-black py-4 rounded-xl hover:from-amber-500 hover:to-amber-400 transition-all duration-300 shadow-lg text-lg mt-2 flex items-center justify-center gap-2"
               >
-                {loading ? "جاري الإرسال..." : "إرسال رمز الاستعادة"}
+                {loading ? (
+                  <span className="flex items-center gap-2">
+                    <div className="w-5 h-5 border-2 border-slate-950 border-t-transparent rounded-full animate-spin"></div>
+                    جاري الإرسال...
+                  </span>
+                ) : (
+                  <>
+                    <Mail className="w-5 h-5" />
+                    إرسال رمز الاستعادة
+                  </>
+                )}
               </button>
-              <div className="mt-4 text-center">
-                <button type="button" onClick={() => setIsForgotPassword(false)} className="text-sm font-bold text-slate-500 hover:text-indigo-600 transition-colors">العودة لتسجيل الدخول</button>
+
+              <div className="mt-6 flex items-center justify-between border-t border-slate-200 pt-5">
+                <button 
+                  type="button" 
+                  onClick={() => {
+                    setError('');
+                    setSuccessMsg('');
+                    setIsForgotPassword(false);
+                  }} 
+                  className="text-sm font-bold text-slate-500 hover:text-slate-800 transition-colors flex items-center gap-1"
+                >
+                  <ArrowRight className="w-4 h-4" />
+                  العودة لتسجيل الدخول
+                </button>
+
+                <button 
+                  type="button" 
+                  onClick={() => {
+                    setError('');
+                    setSuccessMsg('');
+                    setIsForgotPassword(false);
+                    setIsResetMode(true);
+                  }} 
+                  className="text-sm font-bold text-indigo-600 hover:text-indigo-800 transition-colors"
+                >
+                  لدي رمز بالفعل
+                </button>
               </div>
             </form>
           ) : isResetMode ? (
-            <form onSubmit={handleResetPassword} className="animate-in fade-in zoom-in-95 duration-500 text-center">
-              <div className="relative mb-4 mt-4">
-                <label className="block text-right mb-2 text-sm font-bold text-slate-700">رمز الاستعادة المرسل للإيميل</label>
+            /* Reset Password Form with OTP Code & New Password */
+            <form onSubmit={handleResetPassword} className="animate-in fade-in zoom-in-95 duration-500">
+              <div className="mb-4">
+                <label className="block text-right mb-2 text-sm font-bold text-slate-700">البريد الإلكتروني</label>
+                <input
+                  type="email"
+                  value={email} 
+                  onChange={e => setEmail(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl border-2 border-slate-200 bg-white focus:border-amber-500 outline-none text-slate-800"
+                  placeholder="name@example.com"
+                  dir="ltr"
+                  required
+                />
+              </div>
+
+              <div className="mb-4">
+                <label className="block text-right mb-2 text-sm font-bold text-slate-700">رمز الاستعادة (6 أرقام)</label>
                 <input
                   type="text"
-                   maxLength={6}
+                  maxLength={6}
                   value={otpCode} 
                   onChange={e => setOtpCode(e.target.value.replace(/\D/g, ''))}
-                  className="w-full text-center text-2xl font-black tracking-[0.5em] px-4 py-3 rounded-xl border-2 border-slate-200 focus:border-indigo-500 outline-none transition-all"
+                  className="w-full text-center text-2xl font-black tracking-[0.5em] px-4 py-3 rounded-xl border-2 border-slate-200 focus:border-amber-500 bg-white outline-none transition-all text-slate-900"
                   placeholder="------"
                   dir="ltr"
                   required
                 />
               </div>
+
               <InputField
-                 label="كلمة المرور الجديدة"
+                 label="كلمة المرور الجديدة (6 أحرف أو أكثر)"
                  type="password"
                  value={newPassword}
-                 onChange={(e) => setNewPassword(e.target.value)}
+                 onChange={(e: any) => setNewPassword(e.target.value)}
                  dir="ltr"
                />
+
+              <InputField
+                 label="تأكيد كلمة المرور الجديدة"
+                 type="password"
+                 value={confirmPassword}
+                 onChange={(e: any) => setConfirmPassword(e.target.value)}
+                 dir="ltr"
+               />
+
                <button 
                 type="submit"
                 disabled={loading}
-                className="w-full bg-indigo-600 text-white font-bold py-4 rounded-xl hover:bg-indigo-700 transition-all duration-300 shadow-lg text-lg mt-4"
+                className="w-full bg-indigo-950 text-white font-bold py-4 rounded-xl hover:bg-indigo-900 transition-all duration-300 shadow-lg text-lg mt-3 flex items-center justify-center gap-2"
               >
-                {loading ? "جاري التغيير..." : "تعيين كلمة المرور الجديدة"}
+                {loading ? (
+                  <span className="flex items-center gap-2">
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    جاري التعيين...
+                  </span>
+                ) : (
+                  <>
+                    <Lock className="w-5 h-5" />
+                    تعيين كلمة المرور الجديدة
+                  </>
+                )}
               </button>
-              <div className="mt-4 text-center">
-                <button type="button" onClick={() => {setIsResetMode(false); setIsForgotPassword(false);}} className="text-sm font-bold text-slate-500 hover:text-indigo-600 transition-colors">العودة لتسجيل الدخول</button>
+
+              <div className="mt-5 text-center">
+                <button 
+                  type="button" 
+                  onClick={() => {
+                    setError('');
+                    setSuccessMsg('');
+                    setIsResetMode(false); 
+                    setIsForgotPassword(false);
+                  }} 
+                  className="text-sm font-bold text-slate-500 hover:text-indigo-600 transition-colors flex items-center justify-center gap-1 mx-auto"
+                >
+                  <ArrowRight className="w-4 h-4" />
+                  إلغاء والعودة لتسجيل الدخول
+                </button>
               </div>
             </form>
           ) : (
-
+            /* OTP Verification for unverified accounts */
             <form onSubmit={handleVerifyOtp} className="animate-in fade-in zoom-in-95 duration-500 text-center">
                 <div className="relative mb-6 mt-4">
                   <input
@@ -337,26 +484,40 @@ export default function Login() {
                     maxLength={6}
                     value={otpCode} 
                     onChange={e => setOtpCode(e.target.value.replace(/\D/g, ''))}
-                    className="w-full text-center text-3xl font-black tracking-[1em] px-4 py-4 rounded-xl border-2 border-slate-200 bg-white outline-none transition-all focus:border-amber-500 shadow-inner"
+                    className="w-full text-center text-3xl font-black tracking-[1em] px-4 py-4 rounded-xl border-2 border-slate-200 bg-white outline-none transition-all focus:border-amber-500 shadow-inner text-slate-900"
                     placeholder="------"
                     dir="ltr"
                     required
                   />
                 </div>
 
-                <button 
-                  type="button"
-                  onClick={handleResendOtp}
-                  disabled={loading}
-                  className="text-slate-500 hover:text-amber-600 font-bold transition-colors text-sm underline underline-offset-4 mb-8"
-                >
-                  لم يصلك الرمز؟ أعد الإرسال
-                </button>
+                <div className="flex justify-between items-center mb-6 px-2">
+                  <button 
+                    type="button"
+                    onClick={handleResendOtp}
+                    disabled={loading}
+                    className="text-amber-600 hover:text-amber-700 font-bold transition-colors text-sm underline underline-offset-4"
+                  >
+                    لم يصلك الرمز؟ أعد الإرسال
+                  </button>
+
+                  <button 
+                    type="button"
+                    onClick={() => {
+                      setRequiresVerification(false);
+                      setError('');
+                      setSuccessMsg('');
+                    }}
+                    className="text-slate-500 hover:text-slate-700 font-bold text-sm"
+                  >
+                    تغيير البريد
+                  </button>
+                </div>
 
                 <button 
                   type="submit"
                   disabled={loading}
-                  className="w-full bg-gradient-to-r from-amber-600 to-amber-400 text-slate-950 font-bold py-4 rounded-xl hover:shadow-[0_10_20px_rgba(251,191,36,0.4)] transition-all duration-300 hover:-translate-y-1 active:translate-y-0 shadow-lg text-lg flex items-center justify-center gap-2"
+                  className="w-full bg-gradient-to-r from-amber-600 to-amber-400 text-slate-950 font-bold py-4 rounded-xl hover:shadow-[0_10px_20px_rgba(251,191,36,0.4)] transition-all duration-300 hover:-translate-y-0.5 active:translate-y-0 shadow-lg text-lg flex items-center justify-center gap-2"
                 >
                   {loading ? (
                     <span className="flex items-center gap-2">
@@ -366,7 +527,7 @@ export default function Login() {
                   ) : (
                     <>
                       <ShieldCheck className="w-5 h-5" />
-                      تأكيد الحساب
+                      تأكيد وتفعيل الحساب
                     </>
                   )}
                 </button>
@@ -374,7 +535,7 @@ export default function Login() {
           )}
 
           {!requiresVerification && !isForgotPassword && !isResetMode && (
-            <div className="mt-10 text-center text-slate-500 font-medium border-t border-slate-200 pt-8">
+            <div className="mt-10 text-center text-slate-500 font-medium border-t border-slate-200 pt-6">
               ليس لديك حساب بعد؟ <Link to="/register" className="text-amber-600 hover:text-amber-700 font-bold border-b-2 border-transparent hover:border-amber-600 pb-1 transition-all">ابدأ بإنشاء حساب فاخر</Link>
             </div>
           )}

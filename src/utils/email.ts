@@ -1,21 +1,45 @@
 import nodemailer from 'nodemailer';
 
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || 'smtp.gmail.com',
-  port: parseInt(process.env.SMTP_PORT || '587'),
-  secure: process.env.SMTP_SECURE === 'true',
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
-  },
-});
+const getTransporter = () => {
+  const host = process.env.SMTP_HOST || 'smtp.gmail.com';
+  const port = parseInt(process.env.SMTP_PORT || '465', 10);
+  const isSecure = process.env.SMTP_SECURE === 'true' || port === 465;
+  const user = (process.env.SMTP_USER || '').trim();
+  const pass = (process.env.SMTP_PASS || '').replace(/\s+/g, '');
 
-export const sendVerificationEmail = async (to: string, name: string, code: string) => {
-  // If SMTP is not fully configured, log and return to prevent crashing in dev
-  if (!process.env.SMTP_USER) {
-    console.warn('⚠️ SMTP_USER is not configured. Email will not be sent.');
-    console.warn(`[DEV MODE] Verification Code for ${to}: ${code}`);
-    return;
+  if (host.includes('gmail.com')) {
+    return nodemailer.createTransport({
+      service: 'gmail',
+      auth: { user, pass },
+      connectionTimeout: 10000,
+      greetingTimeout: 10000,
+      socketTimeout: 15000,
+    });
+  }
+
+  return nodemailer.createTransport({
+    host,
+    port,
+    secure: isSecure,
+    auth: { user, pass },
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 15000,
+    tls: {
+      rejectUnauthorized: false,
+    },
+  });
+};
+
+export const isSmtpConfigured = () => {
+  return Boolean(process.env.SMTP_USER && process.env.SMTP_PASS);
+};
+
+export const sendVerificationEmail = async (to: string, name: string, code: string): Promise<{ success: boolean; error?: string }> => {
+  if (!isSmtpConfigured()) {
+    console.warn('⚠️ SMTP_USER or SMTP_PASS is not configured in environment.');
+    console.warn(`[OTP Code for ${to}]: ${code}`);
+    return { success: false, error: 'SMTP_NOT_CONFIGURED' };
   }
 
   const htmlContent = `
@@ -31,17 +55,14 @@ export const sendVerificationEmail = async (to: string, name: string, code: stri
         <tr>
             <td align="center">
                 <table width="600" border="0" cellspacing="0" cellpadding="0" style="background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.05); max-width: 600px; width: 100%;">
-                    
                     <!-- Header -->
                     <tr>
                         <td align="center" style="background-color: #020617; padding: 40px 20px;">
-                            <!-- Gold accents using inline border -->
                             <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: 800; letter-spacing: 1px;">
                                 السعيد <span style="color: #f59e0b; font-size: 16px; vertical-align: middle;">للمنصات التعليمية</span>
                             </h1>
                         </td>
                     </tr>
-                    
                     <!-- Body -->
                     <tr>
                         <td style="padding: 50px 40px; text-align: right;" dir="rtl">
@@ -51,20 +72,17 @@ export const sendVerificationEmail = async (to: string, name: string, code: stri
                             <p style="color: #475569; font-size: 16px; line-height: 1.6; margin-bottom: 30px;">
                                 يسعدنا انضمامك إلى النخبة واختيارك لمنصات السعيد. لتأكيد حسابك الفاخر والبدء في رحلة التميز، يرجى استخدام رمز التحقق أدناه:
                             </p>
-                            
                             <!-- Verification Code Box -->
                             <div style="background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border: 1px solid #fcd34d; border-radius: 12px; padding: 30px; text-align: center; margin-bottom: 30px;">
                                 <span style="display: block; color: #b45309; font-size: 14px; font-weight: bold; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 2px;">رمز التحقق السري</span>
                                 <span style="display: block; color: #020617; font-size: 42px; font-weight: 900; letter-spacing: 8px;">${code}</span>
                             </div>
-                            
                             <p style="color: #64748b; font-size: 14px; line-height: 1.6; margin-bottom: 10px;">
                                 هذا الرمز صالح لمدة 15 دقيقة فقط.<br>
                                 يرجى عدم مشاركة هذا الرمز مع أي شخص لضمان أمان حسابك.
                             </p>
                         </td>
                     </tr>
-                    
                     <!-- Footer -->
                     <tr>
                         <td align="center" style="background-color: #f1f5f9; padding: 30px 40px; border-top: 1px solid #e2e8f0;">
@@ -77,7 +95,6 @@ export const sendVerificationEmail = async (to: string, name: string, code: stri
                             </p>
                         </td>
                     </tr>
-                    
                 </table>
             </td>
         </tr>
@@ -94,20 +111,21 @@ export const sendVerificationEmail = async (to: string, name: string, code: stri
   };
 
   try {
+    const transporter = getTransporter();
     const info = await transporter.sendMail(mailOptions);
     console.log('Verification email sent: %s', info.messageId);
-    return true;
-  } catch (error) {
+    return { success: true };
+  } catch (error: any) {
     console.error('Error sending verification email:', error);
-    return false;
+    return { success: false, error: error.message };
   }
 };
 
-export const sendPasswordResetEmail = async (to: string, name: string, code: string) => {
-  if (!process.env.SMTP_USER) {
-    console.warn('⚠️ SMTP_USER is not configured. Email will not be sent.');
-    console.warn(`[DEV MODE] Password Reset Code for ${to}: ${code}`);
-    return;
+export const sendPasswordResetEmail = async (to: string, name: string, code: string): Promise<{ success: boolean; error?: string }> => {
+  if (!isSmtpConfigured()) {
+    console.warn('⚠️ SMTP_USER or SMTP_PASS is not configured in environment.');
+    console.warn(`[Password Reset Code for ${to}]: ${code}`);
+    return { success: false, error: 'SMTP_NOT_CONFIGURED' };
   }
 
   const htmlContent = `
@@ -171,11 +189,12 @@ export const sendPasswordResetEmail = async (to: string, name: string, code: str
   };
 
   try {
+    const transporter = getTransporter();
     const info = await transporter.sendMail(mailOptions);
     console.log('Password reset email sent: %s', info.messageId);
-    return true;
-  } catch (error) {
+    return { success: true };
+  } catch (error: any) {
     console.error('Error sending password reset email:', error);
-    return false;
+    return { success: false, error: error.message };
   }
 };
